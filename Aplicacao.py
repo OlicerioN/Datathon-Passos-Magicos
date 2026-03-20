@@ -57,10 +57,10 @@ def main() -> None:
                 - Precisar embasar ações pedagógicas por indicador específico.
                 """)
             
-        st.divider()
+    st.divider()
 
-        st.info("Navegue pelo menu lateral para acessar as visões principais do projeto.")
-        st.caption("Recomendação de uso: comece pelo Dashboard Geral para visão macro e avance para Análise de Indicadores para investigação detalhada.")
+    st.info("Navegue pelo menu lateral para acessar as visões principais do projeto.")
+    st.caption("Recomendação de uso: comece pelo Dashboard Geral para visão macro e avance para Análise de Indicadores para investigação detalhada.")
 
 if __name__ == "__main__":
     main()

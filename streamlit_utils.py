@@ -15,7 +15,7 @@ def get_bundle(force_retrain: bool = False):
     return load_bundle(MODEL_FILE)
 
 @st.cache_data(show_spinner=False)
-def get_base_dataframe() -> tuple[pd.DataFrame, pd.DataFrame]:
+def get_base_dataframes() -> tuple[pd.DataFrame, pd.DataFrame]:
     "Retorna (base_processada, base_processada). Ambos apontam para o mesmo CSV que foi usado no notebook"
     base = load_base()
     return base, base
