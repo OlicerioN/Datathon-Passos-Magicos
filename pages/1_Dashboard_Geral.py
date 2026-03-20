@@ -373,3 +373,50 @@ def _render_insights(insights: list[tuple[str, str, str]]) -> None:
                     f"<div class='insight-card insight-{tipo}'>{emoji} {texto}</div>",
                     unsafe_allow_html=True,
                 )
+
+def _generate_pdf(figs: list[go.Figure], kpis: dict) -> bytes:
+    buf = io.BytesIO()
+    with PdfPages(buf) as pdf:
+        # Capa
+        fig_c, ax = plt.subplots(figsize=(11, 8.5))
+        fig_c.patch.set_facecolor("#1a1a2e")
+        ax.set_facecolor("#1a1a2e")
+        linhas = [
+            (0.72, "Associação Passos Mágicos",                                        28, "white",   "bold"),
+            (0.60, "Relatório de Risco de Defasagem Escolar",                          20, "#A8DADC", "normal"),
+            (0.47, f"Total de Alunos Analisados: {kpis['total']:,}",                   15, "white",   "normal"),
+            (0.39, f"Em Risco: {kpis['n_risco']:,}  ({kpis['taxa']:.1f}%)",            14, COR_RISCO, "normal"),
+            (0.31, f"Prob. Média: {kpis['media_prob']:.1f}%  |  Acurácia: {kpis['acuracia']:.3f}", 13, "#A8DADC", "normal"),
+        ]
+        for y, txt, sz, cor, weight in linhas:
+            ax.text(0.5, y, txt, ha="center", fontsize=sz, color=cor,
+                    fontweight=weight, transform=ax.transAxes)
+        ax.axis("off")
+        pdf.savefig(fig_c, bbox_inches="tight", facecolor="#1a1a2e")
+        plt.close(fig_c)
+
+        for i, fig in enumerate(figs, start=1):
+            try:
+                img_bytes = pio.to_image(fig, format="png", scale=2)
+                fig_img, ax_img = plt.subplots(figsize=(11, 8.5))
+                ax_img.imshow(plt.imread(io.BytesIO(img_bytes), format="png"))
+                ax_img.axis("off")
+                pdf.savefig(fig_img, bbox_inches="tight")
+                plt.close(fig_img)
+            except Exception:
+                # Fallback se o engine de imagem do Plotly (kaleido) não estiver disponível.
+                fig_txt, ax_txt = plt.subplots(figsize=(11, 8.5))
+                ax_txt.text(
+                    0.5,
+                    0.5,
+                    f"Gráfico {i} indisponível para exportação em imagem.\nInstale 'kaleido' para exportação completa.",
+                    ha="center",
+                    va="center",
+                    fontsize=14,
+                )
+                ax_txt.axis("off")
+                pdf.savefig(fig_txt, bbox_inches="tight")
+                plt.close(fig_txt)
+
+    buf.seek(0)
+    return buf.read()
