@@ -59,3 +59,16 @@ def _apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         mask &= df["risco_defasagem"] == 1
 
     return df[mask].copy()
+
+def _melt_indicadores(df: pd.DataFrame) -> pd.DataFrame:
+    cols = [c for c in INDICADORES if c in df.columns]
+    if not cols:
+        return pd.DataFrame(columns=["indicador", "valor"])
+
+    melted = df.melt(
+        id_vars=["ano_base", "risco_defasagem", "genero_norm"],
+        value_vars=cols,
+        var_name="indicador",
+        value_name="valor",
+    )
+    return melted.dropna(subset=["valor"])
