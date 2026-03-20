@@ -377,7 +377,6 @@ def _render_insights(insights: list[tuple[str, str, str]]) -> None:
 def _generate_pdf(figs: list[go.Figure], kpis: dict) -> bytes:
     buf = io.BytesIO()
     with PdfPages(buf) as pdf:
-        # Capa
         fig_c, ax = plt.subplots(figsize=(11, 8.5))
         fig_c.patch.set_facecolor("#1a1a2e")
         ax.set_facecolor("#1a1a2e")
@@ -404,7 +403,6 @@ def _generate_pdf(figs: list[go.Figure], kpis: dict) -> bytes:
                 pdf.savefig(fig_img, bbox_inches="tight")
                 plt.close(fig_img)
             except Exception:
-                # Fallback se o engine de imagem do Plotly (kaleido) não estiver disponível.
                 fig_txt, ax_txt = plt.subplots(figsize=(11, 8.5))
                 ax_txt.text(
                     0.5,
@@ -420,3 +418,143 @@ def _generate_pdf(figs: list[go.Figure], kpis: dict) -> bytes:
 
     buf.seek(0)
     return buf.read()
+
+def main() -> None:
+    ensure_data_file()
+    bundle = get_bundle()
+    base, _ = get_base_dataframes()
+
+    df = _normalize(base)
+    df = _apply_filters(df)
+
+    if df.empty:
+        st.warning("Nenhum registro encontrado com os filtros selecionados.")
+        return
+
+    #Predicao na base filtrada 
+    X_pred = df.drop(columns=["risco_defasagem", "genero_norm", "inst_cat", "idade_num"], errors="ignore")
+    res = predict_dataframe(X_pred, bundle)
+    df["probabilidade_risco"] = res["probabilidade_risco"].values
+    df["nivel_risco"]         = res["nivel_risco"].values
+
+    total      = len(df)
+    n_risco    = int(df["risco_defasagem"].sum())
+    taxa       = n_risco / total * 100
+    media_prob = df["probabilidade_risco"].mean() * 100
+    acuracia   = bundle.metrics["accuracy"]
+
+    st.title("Dashboard Geral — Passos Mágicos")
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("👥 Total de Alunos",       f"{total:,}")
+    k2.metric("⚠️ Em Risco",              f"{n_risco:,}",       f"{taxa:.1f}% do total")
+    k3.metric("✅ Sem Risco",              f"{total - n_risco:,}", f"{100 - taxa:.1f}% do total")
+    k4.metric("📊 Prob. Média de Risco",   f"{media_prob:.1f}%")
+    k5.metric("🎯 Acurácia do Modelo",     f"{acuracia:.3f}")
+
+    st.divider()
+
+    #Grafico nivel de risco
+    st.subheader("Distribuição por Nível de Risco", text_alignment="center")
+    counts_nivel = df["nivel_risco"].value_counts().reindex(NIVEL_ORDEM, fill_value=0)
+    n1, n2, n3, n4 = st.columns(4)
+    for col_st, nivel in zip([n1, n2, n3, n4], NIVEL_ORDEM):
+        pct = counts_nivel[nivel] / total * 100
+        col_st.metric(f"{NIVEL_EMOJIS[nivel]} {nivel}", f"{counts_nivel[nivel]:,}", f"{pct:.1f}%")
+
+    st.divider()
+
+    st.subheader("🏆 Destaque: Aluno com Menor vs Maior Risco", text_alignment="center")
+    row_min = df.loc[df["probabilidade_risco"].idxmin()]
+    row_max = df.loc[df["probabilidade_risco"].idxmax()]
+
+    campos = [("fase_aluno", "Fase"), ("genero", "Gênero"), ("inst_cat", "Instituição"),
+              ("idade", "Idade"), ("turma", "Turma"), ("ano_base", "Ano Base")]
+    c_low, c_high = st.columns(2)
+    with c_low:
+        st.success("ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ✅ Aluno com Menor Risco de Defasagem ✅")
+        st.metric("ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤProbabilidade de Risco", f"ㅤㅤㅤㅤㅤㅤㅤ{row_min['probabilidade_risco']:.2%}")
+    with c_high:
+        st.error("ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ⚠️ Aluno com Maior Risco de Defasagem ⚠️")
+        st.metric("ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤProbabilidade de Risco", f"ㅤㅤㅤㅤㅤㅤㅤ{row_max['probabilidade_risco']:.2%}")
+
+    dados_comparacao = []
+    for campo, label in campos:
+        dados_comparacao.append(
+            {
+                "Campo": label,
+                "Menor Risco": str(row_min[campo]) if campo in row_min.index else "-",
+                "Maior Risco": str(row_max[campo]) if campo in row_max.index else "-",
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(dados_comparacao),
+        hide_index=True
+    )
+
+    fig_cmp = _fig_comparacao(row_min, row_max)
+    st.plotly_chart(fig_cmp)
+    st.caption("O aluno com maior risco tende a apresentar desempenho mais baixo em indicadores acadêmicos e de engajamento.", text_alignment="center")
+
+    st.divider()
+
+    #Gráficos 
+    st.subheader("📈 Análise Comparativa", text_alignment="center")
+
+    fig_ano = _fig_risco_ano(df)
+    fig_gen = _fig_risco_genero(df)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(fig_ano)
+        st.caption("Este gráfico mostra se a taxa de risco cresce ou reduz ao longo dos anos, considerando também o volume de alunos.", text_alignment="center")
+    with col2:
+        st.plotly_chart(fig_gen)
+        st.caption("Permite comparar diferenças de risco por gênero e checar quais grupos estão acima da média geral.", text_alignment="center")
+    
+    fig_inst = _fig_risco_inst(df)
+    st.plotly_chart(fig_inst)
+    st.caption("Ajuda a identificar categorias de instituição com maior concentração de risco para priorização de ações.", text_alignment="center")
+
+    fig_ind = _fig_indicadores(df)
+    st.plotly_chart(fig_ind)
+    st.caption("A distância entre barras indica quais indicadores mais diferenciam alunos com e sem risco de defasagem.", text_alignment="center")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_id  = _fig_idade(df)
+        st.plotly_chart(fig_id)
+        st.caption("Mostra faixas etárias com maior incidência relativa de risco.", text_alignment="center")
+    with col2:
+        fig_niv = _fig_niveis(df)
+        st.plotly_chart(fig_niv)
+        st.caption("Resume a distribuição final dos alunos por nível de risco previsto.", text_alignment="center")
+
+    st.divider()
+
+    #Insights
+    insights = _collect_insights(df, total=total, taxa_risco=taxa, media_prob=media_prob)
+    _render_insights(insights)
+
+    st.divider()
+
+    #PDF
+    st.subheader("📄 Exportar Relatório")
+    kpis_dict = {
+        "total": total, "n_risco": n_risco, "taxa": taxa,
+        "media_prob": media_prob, "acuracia": acuracia,
+    }
+    all_figs = [fig_cmp, fig_ano, fig_gen, fig_inst, fig_ind, fig_id, fig_niv]
+    pdf_bytes = _generate_pdf(all_figs, kpis_dict)
+
+    st.download_button(
+        label="📊 Baixar Relatório em PDF",
+        data=pdf_bytes,
+        file_name="relatorio_risco_defasagem_passos_magicos.pdf",
+        mime="application/pdf",
+        use_container_width=False,
+    )
+
+
+if __name__ == "__main__":
+    main()
