@@ -4,7 +4,6 @@ import io
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.io as pio
 import streamlit as st
 
 from matplotlib.backends.backend_pdf import PdfPages
@@ -374,7 +373,7 @@ def _render_insights(insights: list[tuple[str, str, str]]) -> None:
                     unsafe_allow_html=True,
                 )
 
-def _generate_pdf(figs: list[go.Figure], kpis: dict) -> bytes:
+def _generate_pdf(df: pd.DataFrame, kpis: dict, insights: list[tuple[str, str, str]]) -> bytes:
     buf = io.BytesIO()
     with PdfPages(buf) as pdf:
         fig_c, ax = plt.subplots(figsize=(11, 8.5))
@@ -394,27 +393,119 @@ def _generate_pdf(figs: list[go.Figure], kpis: dict) -> bytes:
         pdf.savefig(fig_c, bbox_inches="tight", facecolor="#1a1a2e")
         plt.close(fig_c)
 
-        for i, fig in enumerate(figs, start=1):
-            try:
-                img_bytes = pio.to_image(fig, format="png", scale=2)
-                fig_img, ax_img = plt.subplots(figsize=(11, 8.5))
-                ax_img.imshow(plt.imread(io.BytesIO(img_bytes), format="png"))
-                ax_img.axis("off")
-                pdf.savefig(fig_img, bbox_inches="tight")
-                plt.close(fig_img)
-            except Exception:
-                fig_txt, ax_txt = plt.subplots(figsize=(11, 8.5))
-                ax_txt.text(
-                    0.5,
-                    0.5,
-                    f"Gráfico {i} indisponível para exportação em imagem.\nInstale 'kaleido' para exportação completa.",
-                    ha="center",
-                    va="center",
-                    fontsize=14,
-                )
-                ax_txt.axis("off")
-                pdf.savefig(fig_txt, bbox_inches="tight")
-                plt.close(fig_txt)
+        fig_exec, ax_exec = plt.subplots(figsize=(11, 8.5))
+        fig_exec.patch.set_facecolor("white")
+        ax_exec.set_facecolor("white")
+        
+        y_pos = 0.95
+        ax_exec.text(0.05, y_pos, "RESUMO EXECUTIVO", fontsize=16, weight="bold", 
+                     transform=ax_exec.transAxes)
+        
+        y_pos -= 0.08
+        kpi_text = f"""
+            Estatísticas Gerais:
+            • Total de alunos analisados: {kpis['total']:,}
+            • Alunos em risco: {kpis['n_risco']:,} ({kpis['taxa']:.1f}%)
+            • Alunos sem risco: {kpis['total'] - kpis['n_risco']:,} ({100 - kpis['taxa']:.1f}%)
+            • Probabilidade média de risco: {kpis['media_prob']:.1f}%
+            • Acurácia do modelo: {kpis['acuracia']:.1%}
+                    """
+        ax_exec.text(0.05, y_pos, kpi_text, fontsize=11, verticalalignment="top",
+                     transform=ax_exec.transAxes, family="monospace")
+        
+        y_pos -= 0.35
+        ax_exec.text(0.05, y_pos, "INSIGHTS PRINCIPAIS", fontsize=14, weight="bold",
+                     transform=ax_exec.transAxes)
+        
+        y_pos -= 0.06
+        for idx, (tipo, emoji, texto) in enumerate(insights):
+            ax_exec.text(0.05, y_pos, f"➜ {emoji} {texto}", fontsize=10, 
+                        verticalalignment="top", transform=ax_exec.transAxes)
+            y_pos -= 0.06
+        
+        ax_exec.axis("off")
+        pdf.savefig(fig_exec, bbox_inches="tight")
+        plt.close(fig_exec)
+
+        fig_dist, ax_dist = plt.subplots(figsize=(11, 8.5))
+        fig_dist.patch.set_facecolor("white")
+        ax_dist.set_facecolor("white")
+        
+        y_pos = 0.95
+        ax_dist.text(0.05, y_pos, "DISTRIBUIÇÃO POR NÍVEL DE RISCO", fontsize=16, weight="bold",
+                     transform=ax_dist.transAxes)
+        
+        y_pos -= 0.12
+        counts_nivel = df["nivel_risco"].value_counts().reindex(NIVEL_ORDEM, fill_value=0)
+        total = len(df)
+        
+        niveis_text = ""
+        for nivel in NIVEL_ORDEM:
+            count = counts_nivel[nivel]
+            pct = count / total * 100
+            emoji = NIVEL_EMOJIS.get(nivel, "")
+            niveis_text += f"{emoji} {nivel:<20}: {count:>6,} alunos ({pct:>6.1f}%)\n"
+        
+        ax_dist.text(0.05, y_pos, niveis_text, fontsize=12, verticalalignment="top",
+                    transform=ax_dist.transAxes, family="monospace", weight="bold")
+        
+        y_pos -= 0.25
+        interpretacao = """
+            INTERPRETAÇÃO:
+            • Sem Risco: Alunos com baixa probabilidade de defasagem escolar
+            • Atenção: Alunos que requerem monitoramento periodicamente
+            • Risco Moderado: Alunos com sinais de potencial defasagem
+            • Risco Alto: Alunos com alta probabilidade de defasagem escolar que requerem intervenção imediata
+                    """
+        ax_dist.text(0.05, y_pos, interpretacao, fontsize=10, verticalalignment="top",
+                    transform=ax_dist.transAxes)
+        
+        ax_dist.axis("off")
+        pdf.savefig(fig_dist, bbox_inches="tight")
+        plt.close(fig_dist)
+
+        fig_desc, ax_desc = plt.subplots(figsize=(11, 8.5))
+        fig_desc.patch.set_facecolor("white")
+        ax_desc.set_facecolor("white")
+        
+        y_pos = 0.95
+        ax_desc.text(0.05, y_pos, "ANÁLISE DESCRITIVA DOS DADOS", fontsize=16, weight="bold",
+                     transform=ax_desc.transAxes)
+        
+        y_pos -= 0.12
+        
+        genero_stats = df.groupby("genero_norm").agg({
+            "risco_defasagem": ["sum", "count", "mean"]
+        }).round(2)
+        
+        genero_text = "\nDISTRIBUIÇÃO POR GÊNERO:\n"
+        for genero in df["genero_norm"].unique():
+            subset = df[df["genero_norm"] == genero]
+            n_risco = int(subset["risco_defasagem"].sum())
+            total_gen = len(subset)
+            taxa_gen = n_risco / total_gen * 100
+            genero_text += f" ➜ {genero:<15}: {total_gen:>5,} alunos | Em risco: {n_risco:>4,} ({taxa_gen:>5.1f}%)\n"
+        
+        ax_desc.text(0.05, y_pos, genero_text, fontsize=10, verticalalignment="top",
+                    transform=ax_desc.transAxes, family="monospace")
+        
+        y_pos -= 0.25
+        
+        # Análise por Instituição
+        inst_text = "\nDISTRIBUIÇÃO POR CATEGORIA DE INSTITUIÇÃO:\n"
+        for inst in df["inst_cat"].unique():
+            subset = df[df["inst_cat"] == inst]
+            n_risco = int(subset["risco_defasagem"].sum())
+            total_inst = len(subset)
+            taxa_inst = n_risco / total_inst * 100
+            inst_text += f"  ➜ {inst:<30}: {total_inst:>5,} alunos | Em risco: {n_risco:>4,} ({taxa_inst:>5.1f}%)\n"
+        
+        ax_desc.text(0.05, y_pos, inst_text, fontsize=9, verticalalignment="top",
+                    transform=ax_desc.transAxes, family="monospace")
+        
+        ax_desc.axis("off")
+        pdf.savefig(fig_desc, bbox_inches="tight")
+        plt.close(fig_desc)
 
     buf.seek(0)
     return buf.read()
@@ -544,8 +635,7 @@ def main() -> None:
         "total": total, "n_risco": n_risco, "taxa": taxa,
         "media_prob": media_prob, "acuracia": acuracia,
     }
-    all_figs = [fig_cmp, fig_ano, fig_gen, fig_inst, fig_ind, fig_id, fig_niv]
-    pdf_bytes = _generate_pdf(all_figs, kpis_dict)
+    pdf_bytes = _generate_pdf(df, kpis_dict, insights)
 
     st.download_button(
         label="📊 Baixar Relatório em PDF",
