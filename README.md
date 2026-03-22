@@ -19,6 +19,7 @@ A solução foi desenvolvida para apoiar análises educacionais, propostas de me
 - Entrada de dados educacionais do indivíduo
 - Cálculo automático do risco de defasagem
 - Painel com os resultados do usuário
+- Problemas identificados e sugestões 
 - Análise dos indicadores
 - Aplicação totalmente em português
 
@@ -27,6 +28,10 @@ A solução foi desenvolvida para apoiar análises educacionais, propostas de me
 - Distribuição por níveis de risco (sem risco, atenção, risco moderado e risco alto)
 - Comparação de indicadores e seu impacto (IAA, IEG, IPS, IDA e INDE)
 - Taxa de risco e volume por ano, gênero e categoria de instituição
+- Evolução dos indicadores por ano
+
+### Análise Exploratória e Storytelling (PDF)
+- O documento aborda questões mandatórias, além de trazer insights importantes com base em dados para a análise dos processos da Instituição Passos Mágicos, corroborando para melhorias, maior acurácia nas análises e boas práticas no processo de ensino, trazendo um impacto real na vida desses alunos.
 
 
 ## Tecnologias Utilizadas
@@ -40,8 +45,8 @@ A solução foi desenvolvida para apoiar análises educacionais, propostas de me
 
 ## Links do Projeto
 
-- **Apresentação executiva:**  
-  https://youtu.be/FnFLSe-gbsk
+- **Apresentação executiva (acessar somente pelo link):**  
+  https://youtu.be/UPEnuDlwB9s
 
 - **Aplicativo Preditivo (Streamlit):**
-https://4tech-challenge.streamlit.app/
+https://datathon-paapps-magicos-app-aml384gxo9pusncd3s6ert.streamlit.app/
