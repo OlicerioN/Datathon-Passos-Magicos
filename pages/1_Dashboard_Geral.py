@@ -419,7 +419,7 @@ def _generate_pdf(df: pd.DataFrame, kpis: dict, insights: list[tuple[str, str, s
         
         y_pos -= 0.06
         for idx, (tipo, emoji, texto) in enumerate(insights):
-            ax_exec.text(0.05, y_pos, f"{emoji} {texto}", fontsize=10, 
+            ax_exec.text(0.05, y_pos, f"➜ {emoji} {texto}", fontsize=10, 
                         verticalalignment="top", transform=ax_exec.transAxes)
             y_pos -= 0.06
         
@@ -484,20 +484,21 @@ def _generate_pdf(df: pd.DataFrame, kpis: dict, insights: list[tuple[str, str, s
             n_risco = int(subset["risco_defasagem"].sum())
             total_gen = len(subset)
             taxa_gen = n_risco / total_gen * 100
-            genero_text += f"  {genero:<15}: {total_gen:>5,} alunos | Em risco: {n_risco:>4,} ({taxa_gen:>5.1f}%)\n"
+            genero_text += f" ➜ {genero:<15}: {total_gen:>5,} alunos | Em risco: {n_risco:>4,} ({taxa_gen:>5.1f}%)\n"
         
         ax_desc.text(0.05, y_pos, genero_text, fontsize=10, verticalalignment="top",
                     transform=ax_desc.transAxes, family="monospace")
         
         y_pos -= 0.25
         
+        # Análise por Instituição
         inst_text = "\nDISTRIBUIÇÃO POR CATEGORIA DE INSTITUIÇÃO:\n"
         for inst in df["inst_cat"].unique():
             subset = df[df["inst_cat"] == inst]
             n_risco = int(subset["risco_defasagem"].sum())
             total_inst = len(subset)
             taxa_inst = n_risco / total_inst * 100
-            inst_text += f"  {inst:<30}: {total_inst:>5,} alunos | Em risco: {n_risco:>4,} ({taxa_inst:>5.1f}%)\n"
+            inst_text += f"  ➜ {inst:<30}: {total_inst:>5,} alunos | Em risco: {n_risco:>4,} ({taxa_inst:>5.1f}%)\n"
         
         ax_desc.text(0.05, y_pos, inst_text, fontsize=9, verticalalignment="top",
                     transform=ax_desc.transAxes, family="monospace")
